@@ -24,7 +24,27 @@ DT = 1 / FPS * SCALE # Rough estimate of actual dt.
 
 GRAVITY = np.array((0, 9.8))
 GROUND_Y = 550  # In pixels.
-TARGET_Y = 150  # In pixels.
+TARGET_Y = 250  # In pixels.
+
+
+class OnOffHoverController(object):
+    """An on-off (or bang-bang) hover controller.
+
+    The simplest type of controller which returns a binary signal of full on
+    (1) when the erorr is positive, i.e. the rocket is below the target, or 
+    full off (0) when the error is negative, i.e. the rocket is above the
+    target.
+    """
+
+    def __init__(self, target_y):
+        self._target_y = target_y
+
+    def _error(self, rocket_y):
+        return self._target_y - rocket_y
+
+    def tick(self, rocket_y):
+        """Returns 1 if the error is negative, otherwise 0."""
+        return 1 if self._error(rocket_y) < 0 else 0
 
 
 class Rocket(object):
@@ -35,7 +55,8 @@ class Rocket(object):
                  height=21.2,
                  diameter=1.7,
                  mass=27670., 
-                 max_thrust_force=410000.):
+                 max_thrust_force=410000.,
+                 controller=OnOffHoverController(target_y=TARGET_Y)):
         """Initializes a new Rocket instance.
 
         The default arguments correspond to the SpaceX Falcon 1 rocket.
@@ -52,29 +73,33 @@ class Rocket(object):
             max_thrust_force: The maximum thrust force at full burn in newtons.
         """
         self._pos = np.array(pos, dtype=np.float32)
+        self._vel = np.array((0., 0.))
+        self._mass = mass 
+        self._thrust_max_force = np.array((0., -max_thrust_force))
+        self._thrust_percent = 0
+        self._controller = controller
+
         self._height = height
         self._diameter = diameter
-        self._mass = mass 
-        self._max_thrust_force = np.array((0., -max_thrust_force))
-        self._thrust_percent = 0
 
-        self._vel = np.array((0., 0.))
+        # TODO(ehotaj): These below were set arbitrarily. Maybe look up how to
+        # set them better?
+        self._exhaust_max_height = 12.5
+        self._exhaust_width = 1
+        self._exhaust_color = "orange"
 
-    def set_thrust(self, percent):
+    def _set_thrust(self, percent):
         """Sets the rocket's thrust."""
         assert percent in np.arange(0, 1.1, .1)
         self._thrust_percent = percent
 
     def update(self):
         """Resolve the forces acting on the rocket and update position."""
-        if self._pos[1]  > TARGET_Y:
-            self.set_thrust(1.)
-        else:
-            self.set_thrust(0)
+        self._set_thrust(self._controller.tick(self._pos[1]))
 
         acc = GRAVITY
         if self._thrust_percent:
-            thrust_force = self._max_thrust_force * self._thrust_percent
+            thrust_force = self._thrust_max_force * self._thrust_percent
             thrust_acc = thrust_force / self._mass
             acc = acc + thrust_acc 
         self._vel += acc * DT
@@ -98,13 +123,14 @@ class Rocket(object):
         drawables.append(body)
 
         # TODO(ehotaj): Use a constants for these? 
-        exhaust_height = 15 * SCALE * self._thrust_percent
+        exhaust_height = (self._exhaust_max_height * self._thrust_percent * 
+                          SCALE)
         if exhaust_height:
             exhaust = g.Line(g.Point(x, y),
                              g.Point(x, y + exhaust_height))
-            exhaust.setWidth(1)
-            exhaust.setOutline("orange")
-            drawables.append(exhaust)
+            exhaust.setWidth(self._exhaust_width)  # Do not scale exhaust width.
+            exhaust.setOutline(self._exhaust_color)
+            drawables.append(exhaust) 
         return drawables
 
 
