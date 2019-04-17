@@ -15,15 +15,16 @@ import numpy as np
 import tkinter as tk
 
 TITLE = 'Rockets'
-WIDTH = 800
+WIDTH = 800 
 HEIGHT = 600
 
 FPS = 60
-DT = 1 / FPS  # This is a rough estimate of the actual FPS.
+SCALE = 2  # Pixels per meter.
+DT = 1 / FPS * SCALE # Rough estimate of actual dt.
 
 GRAVITY = np.array((0, 9.8))
-GROUND_Y = 550
-TARGET_Y = 150
+GROUND_Y = 550  # In pixels.
+TARGET_Y = 150  # In pixels.
 
 
 class Rocket(object):
@@ -86,17 +87,18 @@ class Rocket(object):
             self._pos[1] = GROUND_Y
             self._vel[1] = min(0, self._vel[1])
             
-    def draw(self):
-        """Returns a list of Graphics Objects necessary to draw the rocket."""
+    def drawables(self):
+        """Returns a list of GraphicsObjects necessary to draw the rocket."""
         drawables = []
         x, y = self._pos.tolist()
-        radius = self._diameter / 2
+        radius = (self._diameter * SCALE) / 2
+        height = self._height * SCALE
         body = g.Polygon(g.Point(x - radius, y), g.Point(x + radius, y), 
-                         g.Point(x, y - self._height)) 
+                         g.Point(x, y - height)) 
         drawables.append(body)
 
         # TODO(ehotaj): Use a constants for these? 
-        exhaust_height = 15 * self._thrust_percent
+        exhaust_height = 15 * SCALE * self._thrust_percent
         if exhaust_height:
             exhaust = g.Line(g.Point(x, y),
                              g.Point(x, y + exhaust_height))
@@ -110,35 +112,38 @@ class Simulation(object):
     """Simulates the Rocket environment."""
 
     def __init__(self):
-        self._window = g.GraphWin(TITLE, WIDTH, HEIGHT, autoflush=False)
+        self._window = g.GraphWin(TITLE, WIDTH, HEIGHT, autoflush=False)       
+        self._rocket = Rocket(pos=(WIDTH/2, GROUND_Y))
+
+    def _static_drawables(self):
+        """Returns GraphicsObjects that only need to be drawn once."""
         ground = g.Line(g.Point(0, GROUND_Y), g.Point(WIDTH, GROUND_Y))
-        ground.draw(self._window)
         target = g.Line(g.Point(WIDTH/2 - 50, TARGET_Y), 
                         g.Point(WIDTH/2 + 50, TARGET_Y))
         target.setOutline("red")
-        target.draw(self._window)
-        
-        self._rocket = Rocket(pos=(WIDTH/2, GROUND_Y))
+        return ground, target
+
+    def _draw(self, drawables):
+        for drawable in drawables:
+            drawable.draw(self._window)
+
+    def _undraw(self, drawables):
+        for drawable in drawables:
+            drawable.undraw()
 
     def run(self):
         """Runs the simulation until the user closes out."""
-        drawables = []
+        static_drawables = self._static_drawables()
+        self._draw(static_drawables)
+
+        dynamic_drawables = []
         while self._window.isOpen():
-            # Undraw the previous graphics objects.
-            for drawable in drawables:
-                drawable.undraw()
-            drawables = []
-
-            # Update and create next drawables.
+            self._undraw(dynamic_drawables)
+            dynamic_drawables = []
             self._rocket.update()
-            drawables.extend(self._rocket.draw())
-
-            # Draw the current graphics objects.
-            for drawable in drawables:
-                drawable.draw(self._window)
-
-            # Enforce FPS.
-            g.update(FPS)
+            dynamic_drawables.extend(self._rocket.drawables())
+            self._draw(dynamic_drawables)
+            g.update(FPS)  # Enforce FPS.
 
 if __name__ == '__main__':
     sim = Simulation()
