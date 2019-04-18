@@ -24,27 +24,66 @@ DT = 1 / FPS * SCALE # Rough estimate of actual dt.
 
 GRAVITY = np.array((0, 9.8))
 GROUND_Y = 550  # In pixels.
-TARGET_Y = 250  # In pixels.
+TARGET_Y = 200  # In pixels.
 
 
-class OnOffHoverController(object):
+# TODO(ehotaj): Extract a common Controller interface.
+class OnOffController(object):
     """An on-off (or bang-bang) hover controller.
 
     The simplest type of controller which returns a binary signal of full on
-    (1) when the erorr is positive, i.e. the rocket is below the target, or 
-    full off (0) when the error is negative, i.e. the rocket is above the
-    target.
+    (inf) when the erorr is positive or full off (-inf) when the error is 
+    negative.
     """
 
-    def __init__(self, target_y):
-        self._target_y = target_y
+    def __init__(self, setpoint):
+        """Initializes a new OnOffController instance.
 
-    def _error(self, rocket_y):
-        return self._target_y - rocket_y
+        Args:
+            setpoint: The desired value of the process.
+        """
+        self._setpoint = setpoint 
 
-    def tick(self, rocket_y):
-        """Returns 1 if the error is negative, otherwise 0."""
-        return 1 if self._error(rocket_y) < 0 else 0
+    def _error(self, process_var):
+        return self._setpoint - process_var 
+
+    def tick(self, process_var):
+        return np.inf * self._error(process_var)
+
+class PIDController(object):
+    def __init__(self, setpoint, kp=1., ki=0., di=1.):
+        """Initializes a new PIDController instance.
+        
+        Args:
+            kp: The proportional weight constant.
+            ki: The integral weight constant.
+            di: The derivative weight constant.
+        """
+        self._setpoint = setpoint
+        self._kp = kp
+        self._ki = ki
+        self._di = di
+
+        self._error_previous = 0
+        self._error_integral = 0
+
+    def _error(self, process_var):
+        return self._setpoint - process_var 
+
+    def tick(self, process_var):
+        """Returns the control for the current instantenous timestep.
+
+        Args:
+            process_var: The meassured value of the process at the current 
+                instantenous timestep.
+        """
+        error = self._error(process_var)
+        self._error_integral += error * DT
+        derivative = (error - self._error_previous) / DT
+        self._error_previous = error
+        return (self._kp * error + 
+                self._ki * self._error_integral + 
+                self._di * derivative)
 
 
 class Rocket(object):
@@ -56,7 +95,7 @@ class Rocket(object):
                  diameter=1.7,
                  mass=27670., 
                  max_thrust_force=410000.,
-                 controller=OnOffHoverController(target_y=TARGET_Y)):
+                 controller=OnOffController(setpoint=TARGET_Y)):
         """Initializes a new Rocket instance.
 
         The default arguments correspond to the SpaceX Falcon 1 rocket.
@@ -71,6 +110,7 @@ class Rocket(object):
                 look and not the simulation.
             mass: The mass of the rocket in kilograms.
             max_thrust_force: The maximum thrust force at full burn in newtons.
+            controller: The type of controller to use to drive the rocket.
         """
         self._pos = np.array(pos, dtype=np.float32)
         self._vel = np.array((0., 0.))
@@ -78,6 +118,7 @@ class Rocket(object):
         self._thrust_max_force = np.array((0., -max_thrust_force))
         self._thrust_percent = 0
         self._controller = controller
+        self._actions = range(0, 11)
 
         self._height = height
         self._diameter = diameter
@@ -88,14 +129,19 @@ class Rocket(object):
         self._exhaust_width = 1
         self._exhaust_color = "orange"
 
-    def _set_thrust(self, percent):
+    def set_thrust(self, percent):
         """Sets the rocket's thrust."""
-        assert percent in np.arange(0, 1.1, .1)
+        assert int(percent * (len(self._actions) - 1)) in self._actions
         self._thrust_percent = percent
+
+    def _sigmoid(self, x):
+        return 1 / (1 + np.exp(-x))
 
     def update(self):
         """Resolve the forces acting on the rocket and update position."""
-        self._set_thrust(self._controller.tick(self._pos[1]))
+        control_var = self._controller.tick(self._pos[1])
+        thrust_percent = round(self._sigmoid(-control_var), 1)
+        self.set_thrust(thrust_percent)
 
         acc = GRAVITY
         if self._thrust_percent:
@@ -139,7 +185,8 @@ class Simulation(object):
 
     def __init__(self):
         self._window = g.GraphWin(TITLE, WIDTH, HEIGHT, autoflush=False)       
-        self._rocket = Rocket(pos=(WIDTH/2, GROUND_Y))
+        self._rocket = Rocket(pos=(WIDTH/2, GROUND_Y),
+                              controller=PIDController(setpoint=TARGET_Y))
 
     def _static_drawables(self):
         """Returns GraphicsObjects that only need to be drawn once."""
