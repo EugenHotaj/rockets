@@ -20,7 +20,7 @@ class Controller(object):
 
     @abc.abstractmethod
     def tick(self, process_variable, dt):
-        """Controls the process at every instantenous timestep (tick).
+        """Controls the process at every instantaneous timestep (tick).
         
         Must be overridden by the subclass.
 
@@ -49,6 +49,16 @@ class OnOffController(Controller):
         return np.inf * self._error(process_var)
 
 class PIDController(Controller):
+    """A proportional-integral-derivative (PID) controller.
+
+    Uses a weighted combination of the error, error integral, and error
+    derivative to control the process.
+
+    Since we fundementally operate in a discrete regime, the integral is
+    approximated by summing up the error term over each instantaneous timestep.
+    The derivative is similarly approximated by taking the slope between the 
+    errors at the current and previous instantaneous timesteps.
+    """
     def __init__(self, setpoint, kp=1., ki=0., di=1.):
         """Initializes a new PIDController instance.
         

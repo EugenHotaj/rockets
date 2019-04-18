@@ -6,7 +6,7 @@ We make a few simplifying assumptions about the rocket:
     * The rocket is indestructable.
     * The rocket has infinite fuel and therefore its mass does not change as 
       it burns fuel.
-    * The rocket is able to apply any percentage of thrust instantenously and
+    * The rocket is able to apply any percentage of thrust instantaneously and
       with perfect precision.
 """
 
