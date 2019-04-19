@@ -59,20 +59,20 @@ class PIDController(Controller):
     The derivative is similarly approximated by taking the slope between the 
     errors at the current and previous instantaneous timesteps.
     """
-    def __init__(self, setpoint, kp=1., ki=0., di=1.):
+    def __init__(self, setpoint, kp=1., ki=0., kd=1.):
         """Initializes a new PIDController instance.
         
         Args:
             setpoint: See Controller base class.
             kp: The proportional weight constant.
             ki: The integral weight constant.
-            di: The derivative weight constant.
+            kd: The derivative weight constant.
         """
         super(PIDController, self).__init__(setpoint=setpoint)
 
         self._kp = kp
         self._ki = ki
-        self._di = di
+        self._kd = kd
 
         self._error_previous = 0
         self._error_integral = 0
@@ -84,5 +84,5 @@ class PIDController(Controller):
         self._error_previous = error
         return (self._kp * error + 
                 self._ki * self._error_integral + 
-                self._di * derivative)
+                self._kd * derivative)
 

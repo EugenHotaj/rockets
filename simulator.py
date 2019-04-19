@@ -130,8 +130,9 @@ class Simulation(object):
 
     def __init__(self):
         self._window = g.GraphWin(TITLE, WIDTH, HEIGHT, autoflush=False)       
-        self._rocket = Rocket(pos=(WIDTH/2, GROUND_Y),
-                              controller=PIDController(setpoint=TARGET_Y))
+
+        controller = PIDController(setpoint=TARGET_Y, kp=1., ki=.0001, kd=2.3)
+        self._rocket = Rocket(pos=(WIDTH/2, GROUND_Y), controller=controller)
 
     def _static_drawables(self):
         """Returns GraphicsObjects that only need to be drawn once."""
