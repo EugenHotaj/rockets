@@ -1,7 +1,9 @@
+<p align="center">
+  <img src="rocket.gif" alt="A hovering rocket."><br>
+  A PID controller drives the rocket to hover at the red target.
+</p>
+
 # Fun with Rockets 
 
-![A hovering rocket.](rocket.gif)
-
-A simple rocket simulator where the rocket can be automatically controlled.
-In the gif, a PID controller drives the rocket to hover at the red target level.
+A simple rocket simulator with controllers which can automatically drive the rocket.
 
