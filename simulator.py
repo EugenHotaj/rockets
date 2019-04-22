@@ -10,6 +10,7 @@ We make a few simplifying assumptions about the rocket:
       with perfect precision.
 """
 
+import time 
 import graphics as g
 import numpy as np
 import tkinter as tk
@@ -23,9 +24,8 @@ HEIGHT = 600
 
 FPS = 60
 SCALE = 2  # Pixels per meter.
-DT = 1 / FPS * SCALE # Rough estimate of actual dt.
 
-GRAVITY = np.array((0, 9.8))
+GRAVITY = np.array((0, 9.8))  # In m/s^2.
 GROUND_Y = 550  # In pixels.
 TARGET_Y = 200  # In pixels.
 
@@ -66,9 +66,8 @@ class Rocket(object):
 
         self._height = height
         self._diameter = diameter
-
-        # TODO(ehotaj): These below were set arbitrarily. Maybe look up how to
-        # set them better?
+        # TODO(eugenhotaj): These below were set arbitrarily. Maybe look up how
+        # to set them better?
         self._exhaust_max_height = 12.5
         self._exhaust_width = 1
         self._exhaust_color = "orange"
@@ -81,10 +80,10 @@ class Rocket(object):
     def _sigmoid(self, x):
         return 1 / (1 + np.exp(-x))
 
-    def update(self):
+    def update(self, dt):
         """Resolve the forces acting on the rocket and update position."""
         if self._controller:
-            control_var = self._controller.tick(self._pos[1], DT)
+            control_var = self._controller.tick(self._pos[1], dt)
             thrust_percent = round(self._sigmoid(-control_var), 1)
             self.set_thrust(thrust_percent)
 
@@ -93,11 +92,11 @@ class Rocket(object):
             thrust_force = self._thrust_max_force * self._thrust_percent
             thrust_acc = thrust_force / self._mass
             acc = acc + thrust_acc 
-        self._vel += acc * DT
-        self._pos += self._vel * DT
+        self._vel += acc * dt
+        self._pos += self._vel * dt
 
-        # TODO(ehotaj): Temporary hack for ground collision. Long term, figure
-        # out what the reacting force is and apply to rocket.
+        # TODO(eugenhotaj): Temporary hack for ground collision. Long term, 
+        # figure out what the reacting force is and apply to rocket.
         if self._pos[1] >= GROUND_Y:
             # Do not stop the rocket if it is going up.
             self._pos[1] = GROUND_Y
@@ -105,6 +104,7 @@ class Rocket(object):
             
     def drawables(self):
         """Returns a list of GraphicsObjects necessary to draw the rocket."""
+        # TODO(eugenhotaj): Remove hardcoded SCALE.
         drawables = []
         x, y = self._pos.tolist()
         radius = (self._diameter * SCALE) / 2
@@ -113,7 +113,6 @@ class Rocket(object):
                          g.Point(x, y - height)) 
         drawables.append(body)
 
-        # TODO(ehotaj): Use a constants for these? 
         exhaust_height = (self._exhaust_max_height * self._thrust_percent * 
                           SCALE)
         if exhaust_height:
@@ -130,7 +129,6 @@ class Simulation(object):
 
     def __init__(self):
         self._window = g.GraphWin(TITLE, WIDTH, HEIGHT, autoflush=False)       
-
         controller = PIDController(setpoint=TARGET_Y, kp=1., ki=.0001, kd=2.3)
         self._rocket = Rocket(pos=(WIDTH/2, GROUND_Y), controller=controller)
 
@@ -152,18 +150,22 @@ class Simulation(object):
 
     def run(self):
         """Runs the simulation until the user closes out."""
-        static_drawables = self._static_drawables()
-        self._draw(static_drawables)
-
+        self._draw(self._static_drawables())
         dynamic_drawables = []
+        t0 = time.time()
         while self._window.isOpen():
+            # Resolve time since last tick.
+            t = time.time()
+            dt = (t - t0) * SCALE
+            t0 = t
+
+            # Run simulation for 1 tick.
             self._undraw(dynamic_drawables)
             dynamic_drawables = []
-            self._rocket.update()
+            self._rocket.update(dt)
             dynamic_drawables.extend(self._rocket.drawables())
             self._draw(dynamic_drawables)
             g.update(FPS)  # Enforce FPS.
 
 if __name__ == '__main__':
-    sim = Simulation()
-    sim.run()
+    Simulation().run()
